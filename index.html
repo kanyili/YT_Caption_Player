@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>YouTube加字幕_播放器</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      padding: 12px 20px;
+      background-color: #1e1e1e;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header label {
+      font-weight: bold;
+      white-space: nowrap;
+      color: #bbb;
+    }
+    header input[type="text"] {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background-color: #2a2a2a;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+    header input[type="text"]:focus {
+      border-color: #ff0000;
+    }
+    .load-btn {
+      background-color: #c00;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      transition: background-color 0.2s;
+      white-space: nowrap;
+    }
+    .load-btn:hover {
+      background-color: #e00;
+    }
+
+    /* 主區域兩欄佈局 */
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+      position: relative;
+    }
+
+    /* 左側：影片播放區 + 控制選項 */
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: #000;
+      border-right: 1px solid #333;
+      position: relative;
+    }
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      background-color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #player {
+      width: 100%;
+      height: 100%;
+    }
+    /* 疊加字幕區 */
+    .subtitle-overlay {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 10%;
+      width: 80%;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .subtitle-text {
+      display: inline-block;
+      background-color: rgba(0, 0, 0, 0.75);
+      color: #ffffff;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 24px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+      transition: all 0.1s ease;
+    }
+
+    /* 左下字幕調整控制列 */
+    .controls-bar {
+      background-color: #1a1a1a;
+      padding: 10px 20px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      border-top: 1px solid #333;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #ccc;
+    }
+    .control-group input[type="range"] {
+      cursor: pointer;
+    }
+
+    /* 右側：SRT 輸入區 */
+    .right-panel {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      background-color: #181818;
+      transition: margin-right 0.3s ease, opacity 0.3s ease;
+      position: relative;
+      z-index: 20;
+    }
+    .right-panel.collapsed {
+      margin-right: -320px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .panel-header {
+      padding: 10px 16px;
+      background-color: #222;
+      border-bottom: 1px solid #333;
+      font-weight: bold;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      white-space: nowrap;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collapse-btn {
+      background-color: #333;
+      color: #ccc;
+      border: 1px solid #444;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      outline: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .collapse-btn:hover {
+      background-color: #444;
+      color: #fff;
+    }
+
+    /* 當面板收合時顯示的固定/懸浮按鈕 */
+    .floating-expand-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 15;
+      display: none;
+      background-color: #222;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .floating-expand-btn:hover {
+      background-color: #333;
+      border-color: #888;
+    }
+
+    .status-badge {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background-color: #444;
+      color: #aaa;
+    }
+    .status-badge.active {
+      background-color: #1b5e20;
+      color: #81c784;
+    }
+    textarea#srtInput {
+      flex: 1;
+      width: 100%;
+      padding: 12px;
+      background-color: #121212;
+      color: #e0e0e0;
+      border: none;
+      resize: none;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      outline: none;
+    }
+    textarea#srtInput::placeholder {
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部網址輸入 -->
+  <header>
+    <label for="videoUrl">影片網址：</label>
+    <input type="text" id="videoUrl" placeholder="請貼上 YouTube 網址（例如：https://youtu.be/2XXqAKF3DzY）" />
+    <button class="load-btn" id="loadBtn">載入影片</button>
+  </header>
+
+  <!-- 主內容區 -->
+  <div class="main-container">
+    <!-- 收合後顯示的懸浮展開按鈕 -->
+    <button class="floating-expand-btn" id="floatingExpandBtn">◀ 展開</button>
+
+    <!-- 左側播放與字幕 -->
+    <div class="left-panel">
+      <div class="video-wrapper">
+        <div id="player"></div>
+        <div class="subtitle-overlay" id="subtitleOverlay">
+          <div class="subtitle-text" id="subtitleText" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- 字幕設定控制列 -->
+      <div class="controls-bar">
+        <div class="control-group">
+          <label for="fontSize">字體大小：</label>
+          <input type="range" id="fontSize" min="14" max="48" value="24" />
+          <span id="fontSizeVal">24px</span>
+        </div>
+        <div class="control-group">
+          <label for="subtitleHeight">字幕高度：</label>
+          <input type="range" id="subtitleHeight" min="2" max="80" value="10" />
+          <span id="subtitleHeightVal">10%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側 SRT 輸入 -->
+    <div class="right-panel" id="rightPanel">
+      <div class="panel-header">
+        <div class="header-left">
+          <button class="collapse-btn" id="collapseBtn" title="收合面板">收合 ▶</button>
+          <span>SRT 輸入區</span>
+        </div>
+        <span class="status-badge" id="srtStatus">未輸入</span>
+      </div>
+      <textarea id="srtInput" placeholder="請在此貼上 SRT 格式字幕，例如：&#10;&#10;1&#10;00:00:01,000 --> 00:00:04,000&#10;歡迎使用 YouTube加字幕_播放器！&#10;&#10;2&#10;00:00:04,500 --> 00:00:07,000&#10;即時修改字幕，畫面同步顯示。"></textarea>
+    </div>
+  </div>
+
+  <!-- YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    let player;
+    let parsedSubtitles = [];
+    let timerId = null;
+
+    // 1. YouTube API Ready
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: '',
+        host: 'https://www.youtube.com',
+        playerVars: {
+          'origin': window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://www.youtube.com'
+        },
+        events: {
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    }
+
+    // 2. YouTube 網址 ID 解析
+    function extractVideoId(url) {
+      if (!url) return null;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    function loadVideo() {
+      const urlInput = document.getElementById('videoUrl');
+      const videoId = extractVideoId(urlInput.value.trim());
+      if (videoId) {
+        if (player && typeof player.loadVideoById === 'function') {
+          player.loadVideoById(videoId);
+        } else {
+          alert('YouTube 播放器尚未初始化完成，請稍候再試。');
+        }
+      } else {
+        alert('無法識別有效的 YouTube 網址，請確認後重新輸入！');
+      }
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', loadVideo);
+    document.getElementById('videoUrl').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        loadVideo();
+      }
+    });
+
+    // 3. SRT 時間轉換
+    function timeToSeconds(timeStr) {
+      if (!timeStr) return 0;
+      const parts = timeStr.trim().split(':');
+      if (parts.length !== 3) return 0;
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const secParts = parts[2].split(',');
+      const seconds = parseInt(secParts[0], 10);
+      const millis = secParts[1] ? parseInt(secParts[1], 10) : 0;
+      return hours * 3600 + minutes * 60 + seconds + millis / 1000;
+    }
+
+    // 4. 解析 SRT 字幕
+    function parseSRT(srtText) {
+      const normalized = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const blocks = normalized.trim().split(/\n\n+/);
+      const result = [];
+
+      blocks.forEach(block => {
+        const lines = block.split('\n');
+        if (lines.length >= 2) {
+          let timeLineIndex = -1;
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes('-->')) {
+              timeLineIndex = i;
+              break;
+            }
+          }
+
+          if (timeLineIndex !== -1) {
+            const timeMatch = lines[timeLineIndex].split('-->');
+            const start = timeToSeconds(timeMatch[0]);
+            const end = timeToSeconds(timeMatch[1]);
+            const text = lines.slice(timeLineIndex + 1).join('\n');
+
+            if (!isNaN(start) && !isNaN(end)) {
+              result.push({ start, end, text });
+            }
+          }
+        }
+      });
+      return result;
+    }
+
+    const srtInput = document.getElementById('srtInput');
+    const srtStatus = document.getElementById('srtStatus');
+
+    srtInput.addEventListener('input', function() {
+      parsedSubtitles = parseSRT(srtInput.value);
+      if (parsedSubtitles.length > 0) {
+        srtStatus.textContent = `已解析 ${parsedSubtitles.length} 條字幕`;
+        srtStatus.classList.add('active');
+      } else {
+        srtStatus.textContent = srtInput.value.trim() ? '格式錯誤' : '未輸入';
+        srtStatus.classList.remove('active');
+      }
+      updateSubtitle();
+    });
+
+    // 5. 播放與字幕即時監聽
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.PLAYING) {
+        if (!timerId) {
+          timerId = setInterval(updateSubtitle, 100);
+        }
+      } else {
+        if (timerId) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+      }
+    }
+
+    function updateSubtitle() {
+      if (!player || typeof player.getCurrentTime !== 'function') return;
+      const currentTime = player.getCurrentTime();
+      const currentSub = parsedSubtitles.find(sub => currentTime >= sub.start && currentTime <= sub.end);
+
+      const subtitleText = document.getElementById('subtitleText');
+      if (currentSub) {
+        subtitleText.textContent = currentSub.text;
+        subtitleText.style.display = 'inline-block';
+      } else {
+        subtitleText.style.display = 'none';
+      }
+    }
+
+    // 6. 字幕樣式調整
+    const fontSizeInput = document.getElementById('fontSize');
+    const fontSizeVal = document.getElementById('fontSizeVal');
+    const subtitleHeightInput = document.getElementById('subtitleHeight');
+    const subtitleHeightVal = document.getElementById('subtitleHeightVal');
+    const subtitleText = document.getElementById('subtitleText');
+    const subtitleOverlay = document.getElementById('subtitleOverlay');
+
+    fontSizeInput.addEventListener('input', function() {
+      const val = this.value;
+      fontSizeVal.textContent = `${val}px`;
+      subtitleText.style.fontSize = `${val}px`;
+    });
+
+    subtitleHeightInput.addEventListener('input', function() {
+      const val = this.value;
+      subtitleHeightVal.textContent = `${val}%`;
+      subtitleOverlay.style.bottom = `${val}%`;
+    });
+
+    // 7. 面板收合/展開控制邏輯
+    const collapseBtn = document.getElementById('collapseBtn');
+    const floatingExpandBtn = document.getElementById('floatingExpandBtn');
+    const rightPanel = document.getElementById('rightPanel');
+
+    // 點擊「收合 ▶」
+    collapseBtn.addEventListener('click', function() {
+      rightPanel.classList.add('collapsed');
+      floatingExpandBtn.style.display = 'block';
+    });
+
+    // 點擊懸浮的「◀ 展開」
+    floatingExpandBtn.addEventListener('click', function() {
+      rightPanel.classList.remove('collapsed');
+      floatingExpandBtn.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
