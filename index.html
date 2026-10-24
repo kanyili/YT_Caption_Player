@@ -62,7 +62,7 @@
       background-color: #e00;
     }
 
-    /* 主區域兩欄佈局 */
+    /* 主區域兩欄佈局：預設左右寬度 1:1 (各 50%) */
     .main-container {
       display: flex;
       flex: 1;
@@ -77,7 +77,7 @@
       flex-direction: column;
       background-color: #000;
       position: relative;
-      min-width: 300px;
+      min-width: 250px;
     }
     .video-wrapper {
       position: relative;
@@ -93,6 +93,7 @@
       width: 100%;
       height: 100%;
     }
+    
     /* 疊加字幕區 */
     .subtitle-overlay {
       position: absolute;
@@ -100,25 +101,25 @@
       transform: translateX(-50%);
       bottom: 10%;
       width: 90%;
-      text-align: center;
+      text-align: center; /* 容器置中 */
       pointer-events: none;
       z-index: 10;
     }
     .subtitle-text {
       display: inline-block;
-      background-color: rgba(0, 0, 0, 0.75);
+      background-color: rgba(0, 0, 0, 0.82);
       color: #ffffff;
-      padding: 8px 20px;
+      padding: 10px 24px;
       border-radius: 6px;
-      font-size: 24px;
+      font-size: 23px;
       line-height: 1.5;
-      white-space: pre-wrap;
+      text-align: left; /* [調整3] 內容字體靠左對齊，保留原始對齊結構 */
+      white-space: pre;  /* [調整2] 完全保留原文字串的所有空格、Tab 與換行 */
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
       transition: all 0.1s ease;
-      /* 全型等寬字型與排版設定[cite: 3] */
-      font-family: "Courier New", Courier, "Consolas", "Noto Sans CJK TC", "Microsoft JhengHei", monospace;
-      font-size-adjust: none;
-      font-feature-settings: "vwal";
+      /* 使用與記事本一致的標準等寬字型 */
+      font-family: "Consolas", "Courier New", "Lucida Console", "Noto Sans Mono", "Microsoft JhengHei", monospace;
+      font-variant-east-asian: full-width;
     }
 
     /* 左下字幕調整控制列 */
@@ -155,11 +156,10 @@
       background-color: #ff0000;
     }
 
-    /* 右側：SRT 輸入區 */
+    /* 右側：SRT 輸入區 (預設與左側 1:1 相同寬度) */
     .right-panel {
-      width: 380px;
+      flex: 1;
       min-width: 200px;
-      max-width: 800px;
       display: flex;
       flex-direction: column;
       background-color: #181818;
@@ -234,6 +234,8 @@
       background-color: #1b5e20;
       color: #81c784;
     }
+    
+    /* SRT 文字輸入框：比照 Windows 記事本樣式 */
     textarea#srtInput {
       flex: 1;
       width: 100%;
@@ -242,10 +244,13 @@
       color: #e0e0e0;
       border: none;
       resize: none;
-      font-family: "Courier New", Courier, monospace;
+      font-family: "Consolas", "Courier New", "Lucida Console", "Microsoft JhengHei", monospace;
       font-size: 13px;
       line-height: 1.5;
       outline: none;
+      white-space: pre;
+      overflow-x: auto;
+      tab-size: 4;
     }
     textarea#srtInput::placeholder {
       color: #555;
@@ -267,7 +272,7 @@
     <button class="floating-expand-btn" id="floatingExpandBtn">◀ 展開</button>
 
     <!-- 左側播放與字幕 -->
-    <div class="left-panel">
+    <div class="left-panel" id="leftPanel">
       <div class="video-wrapper">
         <div id="player"></div>
         <div class="subtitle-overlay" id="subtitleOverlay">
@@ -279,8 +284,8 @@
       <div class="controls-bar">
         <div class="control-group">
           <label for="fontSize">字體大小：</label>
-          <input type="range" id="fontSize" min="14" max="48" value="24" />
-          <span id="fontSizeVal">24px</span>
+          <input type="range" id="fontSize" min="14" max="48" value="23" />
+          <span id="fontSizeVal">23px</span>
         </div>
         <div class="control-group">
           <label for="subtitleHeight">字幕高度：</label>
@@ -372,16 +377,7 @@
       return hours * 3600 + minutes * 60 + seconds + millis / 1000;
     }
 
-    // 半型轉全型轉換器 (確保每個字元寬度一致)[cite: 3]
-    function toFullWidth(str) {
-      if (!str) return '';
-      return str.replace(/[\u0020-\u007e]/g, function(ch) {
-        if (ch === ' ') return '\u3000'; // 半型空白轉全型空白
-        return String.fromCharCode(ch.charCodeAt(0) + 0xfee0); // ASCII 轉全型
-      });
-    }
-
-    // 4. 解析 SRT 字幕
+    // 4. 解析 SRT 字幕 (完整保留原記事本輸入格式與空白)
     function parseSRT(srtText) {
       const normalized = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const blocks = normalized.trim().split(/\n\n+/);
@@ -449,9 +445,7 @@
 
       const subtitleText = document.getElementById('subtitleText');
       if (currentSub) {
-        // 將每列文字的半型轉為全型[cite: 3]
-        const fullWidthLines = currentSub.text.split('\n').map(line => toFullWidth(line)).join('\n');
-        subtitleText.textContent = fullWidthLines;
+        subtitleText.textContent = currentSub.text; // 直接帶入原汁原味的記事本內容[cite: 4]
         subtitleText.style.display = 'inline-block';
       } else {
         subtitleText.style.display = 'none';
@@ -511,10 +505,11 @@
       const containerWidth = document.getElementById('mainContainer').offsetWidth;
       let newRightWidth = containerWidth - e.clientX;
 
-      // 限制寬度區間 (200px ~ 800px)
       if (newRightWidth < 200) newRightWidth = 200;
-      if (newRightWidth > containerWidth - 300) newRightWidth = containerWidth - 300;
+      if (newRightWidth > containerWidth - 250) newRightWidth = containerWidth - 250;
 
+      // 拖曳時手動調整 flex 寬度
+      rightPanel.style.flex = 'none';
       rightPanel.style.width = `${newRightWidth}px`;
     });
 
