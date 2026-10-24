@@ -101,7 +101,7 @@
       transform: translateX(-50%);
       bottom: 10%;
       width: 90%;
-      text-align: center; /* 容器置中 */
+      text-align: center;
       pointer-events: none;
       z-index: 10;
     }
@@ -109,17 +109,15 @@
       display: inline-block;
       background-color: rgba(0, 0, 0, 0.82);
       color: #ffffff;
-      padding: 10px 24px;
+      padding: 8px 20px;
       border-radius: 6px;
       font-size: 23px;
-      line-height: 1.5;
-      text-align: left; /* [調整3] 內容字體靠左對齊，保留原始對齊結構 */
-      white-space: pre;  /* [調整2] 完全保留原文字串的所有空格、Tab 與換行 */
+      line-height: 1.15; /* 初始行高 */
+      text-align: left;
+      white-space: pre;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
       transition: all 0.1s ease;
-      /* 使用與記事本一致的標準等寬字型 */
       font-family: "Consolas", "Courier New", "Lucida Console", "Noto Sans Mono", "Microsoft JhengHei", monospace;
-      font-variant-east-asian: full-width;
     }
 
     /* 左下字幕調整控制列 */
@@ -127,19 +125,21 @@
       background-color: #1a1a1a;
       padding: 10px 20px;
       display: flex;
-      gap: 24px;
+      gap: 20px;
       align-items: center;
       border-top: 1px solid #333;
+      flex-wrap: wrap;
     }
     .control-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       font-size: 13px;
       color: #ccc;
     }
     .control-group input[type="range"] {
       cursor: pointer;
+      width: 90px;
     }
 
     /* 可拖曳的分隔線 (Resizer) */
@@ -156,7 +156,7 @@
       background-color: #ff0000;
     }
 
-    /* 右側：SRT 輸入區 (預設與左側 1:1 相同寬度) */
+    /* 右側：SRT 輸入區 */
     .right-panel {
       flex: 1;
       min-width: 200px;
@@ -235,7 +235,7 @@
       color: #81c784;
     }
     
-    /* SRT 文字輸入框：比照 Windows 記事本樣式 */
+    /* SRT 文字輸入區 */
     textarea#srtInput {
       flex: 1;
       width: 100%;
@@ -286,6 +286,11 @@
           <label for="fontSize">字體大小：</label>
           <input type="range" id="fontSize" min="14" max="48" value="23" />
           <span id="fontSizeVal">23px</span>
+        </div>
+        <div class="control-group">
+          <label for="subtitleLineHeight">字幕行距：</label>
+          <input type="range" id="subtitleLineHeight" min="0.8" max="2.0" step="0.05" value="1.15" />
+          <span id="subtitleLineHeightVal">1.15</span>
         </div>
         <div class="control-group">
           <label for="subtitleHeight">字幕高度：</label>
@@ -377,7 +382,7 @@
       return hours * 3600 + minutes * 60 + seconds + millis / 1000;
     }
 
-    // 4. 解析 SRT 字幕 (完整保留原記事本輸入格式與空白)
+    // 4. 解析 SRT 字幕
     function parseSRT(srtText) {
       const normalized = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const blocks = normalized.trim().split(/\n\n+/);
@@ -445,16 +450,18 @@
 
       const subtitleText = document.getElementById('subtitleText');
       if (currentSub) {
-        subtitleText.textContent = currentSub.text; // 直接帶入原汁原味的記事本內容[cite: 4]
+        subtitleText.textContent = currentSub.text;
         subtitleText.style.display = 'inline-block';
       } else {
         subtitleText.style.display = 'none';
       }
     }
 
-    // 6. 字幕樣式調整
+    // 6. 字幕樣式調整 (字體大小、行距、高度)
     const fontSizeInput = document.getElementById('fontSize');
     const fontSizeVal = document.getElementById('fontSizeVal');
+    const subtitleLineHeightInput = document.getElementById('subtitleLineHeight');
+    const subtitleLineHeightVal = document.getElementById('subtitleLineHeightVal');
     const subtitleHeightInput = document.getElementById('subtitleHeight');
     const subtitleHeightVal = document.getElementById('subtitleHeightVal');
     const subtitleText = document.getElementById('subtitleText');
@@ -464,6 +471,12 @@
       const val = this.value;
       fontSizeVal.textContent = `${val}px`;
       subtitleText.style.fontSize = `${val}px`;
+    });
+
+    subtitleLineHeightInput.addEventListener('input', function() {
+      const val = this.value;
+      subtitleLineHeightVal.textContent = val;
+      subtitleText.style.lineHeight = val;
     });
 
     subtitleHeightInput.addEventListener('input', function() {
@@ -508,7 +521,6 @@
       if (newRightWidth < 200) newRightWidth = 200;
       if (newRightWidth > containerWidth - 250) newRightWidth = containerWidth - 250;
 
-      // 拖曳時手動調整 flex 寬度
       rightPanel.style.flex = 'none';
       rightPanel.style.width = `${newRightWidth}px`;
     });
