@@ -76,8 +76,8 @@
       display: flex;
       flex-direction: column;
       background-color: #000;
-      border-right: 1px solid #333;
       position: relative;
+      min-width: 300px;
     }
     .video-wrapper {
       position: relative;
@@ -99,7 +99,7 @@
       left: 50%;
       transform: translateX(-50%);
       bottom: 10%;
-      width: 80%;
+      width: 90%;
       text-align: center;
       pointer-events: none;
       z-index: 10;
@@ -108,13 +108,17 @@
       display: inline-block;
       background-color: rgba(0, 0, 0, 0.75);
       color: #ffffff;
-      padding: 6px 16px;
+      padding: 8px 20px;
       border-radius: 6px;
       font-size: 24px;
-      line-height: 1.4;
+      line-height: 1.5;
       white-space: pre-wrap;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
       transition: all 0.1s ease;
+      /* 全型等寬字型與排版設定[cite: 3] */
+      font-family: "Courier New", Courier, "Consolas", "Noto Sans CJK TC", "Microsoft JhengHei", monospace;
+      font-size-adjust: none;
+      font-feature-settings: "vwal";
     }
 
     /* 左下字幕調整控制列 */
@@ -137,20 +141,33 @@
       cursor: pointer;
     }
 
+    /* 可拖曳的分隔線 (Resizer) */
+    .resizer {
+      width: 6px;
+      background-color: #222;
+      border-left: 1px solid #333;
+      border-right: 1px solid #333;
+      cursor: col-resize;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+    .resizer:hover, .resizer.dragging {
+      background-color: #ff0000;
+    }
+
     /* 右側：SRT 輸入區 */
     .right-panel {
-      width: 320px;
+      width: 380px;
+      min-width: 200px;
+      max-width: 800px;
       display: flex;
       flex-direction: column;
       background-color: #181818;
-      transition: margin-right 0.3s ease, opacity 0.3s ease;
       position: relative;
       z-index: 20;
     }
     .right-panel.collapsed {
-      margin-right: -320px;
-      opacity: 0;
-      pointer-events: none;
+      display: none;
     }
 
     .panel-header {
@@ -185,7 +202,7 @@
       color: #fff;
     }
 
-    /* 當面板收合時顯示的固定/懸浮按鈕 */
+    /* 面板收合後顯示的懸浮展開按鈕 */
     .floating-expand-btn {
       position: absolute;
       top: 12px;
@@ -225,7 +242,7 @@
       color: #e0e0e0;
       border: none;
       resize: none;
-      font-family: monospace;
+      font-family: "Courier New", Courier, monospace;
       font-size: 13px;
       line-height: 1.5;
       outline: none;
@@ -245,7 +262,7 @@
   </header>
 
   <!-- 主內容區 -->
-  <div class="main-container">
+  <div class="main-container" id="mainContainer">
     <!-- 收合後顯示的懸浮展開按鈕 -->
     <button class="floating-expand-btn" id="floatingExpandBtn">◀ 展開</button>
 
@@ -272,6 +289,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 可拖曳調寬度的分隔線 -->
+    <div class="resizer" id="resizer"></div>
 
     <!-- 右側 SRT 輸入 -->
     <div class="right-panel" id="rightPanel">
@@ -352,6 +372,15 @@
       return hours * 3600 + minutes * 60 + seconds + millis / 1000;
     }
 
+    // 半型轉全型轉換器 (確保每個字元寬度一致)[cite: 3]
+    function toFullWidth(str) {
+      if (!str) return '';
+      return str.replace(/[\u0020-\u007e]/g, function(ch) {
+        if (ch === ' ') return '\u3000'; // 半型空白轉全型空白
+        return String.fromCharCode(ch.charCodeAt(0) + 0xfee0); // ASCII 轉全型
+      });
+    }
+
     // 4. 解析 SRT 字幕
     function parseSRT(srtText) {
       const normalized = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -420,7 +449,9 @@
 
       const subtitleText = document.getElementById('subtitleText');
       if (currentSub) {
-        subtitleText.textContent = currentSub.text;
+        // 將每列文字的半型轉為全型[cite: 3]
+        const fullWidthLines = currentSub.text.split('\n').map(line => toFullWidth(line)).join('\n');
+        subtitleText.textContent = fullWidthLines;
         subtitleText.style.display = 'inline-block';
       } else {
         subtitleText.style.display = 'none';
@@ -451,17 +482,49 @@
     const collapseBtn = document.getElementById('collapseBtn');
     const floatingExpandBtn = document.getElementById('floatingExpandBtn');
     const rightPanel = document.getElementById('rightPanel');
+    const resizer = document.getElementById('resizer');
 
-    // 點擊「收合 ▶」
     collapseBtn.addEventListener('click', function() {
       rightPanel.classList.add('collapsed');
+      resizer.style.display = 'none';
       floatingExpandBtn.style.display = 'block';
     });
 
-    // 點擊懸浮的「◀ 展開」
     floatingExpandBtn.addEventListener('click', function() {
       rightPanel.classList.remove('collapsed');
+      resizer.style.display = 'block';
       floatingExpandBtn.style.display = 'none';
+    });
+
+    // 8. 右側面板手動拖曳調整寬度邏輯 (Resizer)
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', function(e) {
+      isResizing = true;
+      resizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      const containerWidth = document.getElementById('mainContainer').offsetWidth;
+      let newRightWidth = containerWidth - e.clientX;
+
+      // 限制寬度區間 (200px ~ 800px)
+      if (newRightWidth < 200) newRightWidth = 200;
+      if (newRightWidth > containerWidth - 300) newRightWidth = containerWidth - 300;
+
+      rightPanel.style.width = `${newRightWidth}px`;
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (isResizing) {
+        isResizing = false;
+        resizer.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
     });
   </script>
 </body>
