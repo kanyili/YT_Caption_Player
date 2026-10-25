@@ -80,7 +80,7 @@
       min-width: 250px;
     }
     
-    /* 影片包覆層：當進入全螢幕時，連同內部字幕一起放大 */
+    /* 影片包覆層：當進入全螢幕時，連同內部字幕一起全螢幕 */
     .video-wrapper {
       position: relative;
       width: 100%;
@@ -91,19 +91,19 @@
       justify-content: center;
       overflow: hidden;
     }
-    
+
     /* 支援瀏覽器全螢幕 API 的樣式 */
     .video-wrapper:fullscreen {
       width: 100vw;
       height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     .video-wrapper:-webkit-full-screen {
       width: 100vw;
       height: 100vh;
-    }
-    .video-wrapper:-moz-full-screen {
-      width: 100vw;
-      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     #player {
@@ -111,7 +111,7 @@
       height: 100%;
     }
     
-    /* 疊加字幕區：直接放在 video-wrapper 內，確保全螢幕時同步顯示 */
+    /* 疊加字幕區 */
     .subtitle-overlay {
       position: absolute;
       left: 50%;
@@ -120,7 +120,7 @@
       width: 90%;
       text-align: center;
       pointer-events: none;
-      z-index: 9999; /* 確保層級最高，不會被影片蓋過 */
+      z-index: 9999;
     }
     .subtitle-text {
       display: inline-block;
@@ -142,7 +142,7 @@
       background-color: #1a1a1a;
       padding: 10px 20px;
       display: flex;
-      gap: 20px;
+      gap: 16px;
       align-items: center;
       border-top: 1px solid #333;
       flex-wrap: wrap;
@@ -156,7 +156,22 @@
     }
     .control-group input[type="range"] {
       cursor: pointer;
-      width: 90px;
+      width: 80px;
+    }
+
+    /* 自訂全螢幕按鈕樣式 */
+    .fullscreen-btn {
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background-color 0.2s;
+    }
+    .fullscreen-btn:hover {
+      background-color: #555;
     }
 
     /* 可拖曳的分隔線 (Resizer) */
@@ -290,7 +305,6 @@
 
     <!-- 左側播放與字幕 -->
     <div class="left-panel" id="leftPanel">
-      <!-- 將 video-wrapper 作為全螢幕與字幕的共同容器 -->
       <div class="video-wrapper" id="videoWrapper">
         <div id="player"></div>
         <div class="subtitle-overlay" id="subtitleOverlay">
@@ -306,15 +320,16 @@
           <span id="fontSizeVal">23px</span>
         </div>
         <div class="control-group">
-          <label for="subtitleLineHeight">字幕行距：</label>
+          <label for="subtitleLineHeight">行距：</label>
           <input type="range" id="subtitleLineHeight" min="0.8" max="2.0" step="0.05" value="1.15" />
           <span id="subtitleLineHeightVal">1.15</span>
         </div>
         <div class="control-group">
-          <label for="subtitleHeight">字幕高度：</label>
+          <label for="subtitleHeight">高度：</label>
           <input type="range" id="subtitleHeight" min="2" max="80" value="10" />
           <span id="subtitleHeightVal">10%</span>
         </div>
+        <button class="fullscreen-btn" id="fullscreenBtn">⛶ 全螢幕字幕播放</button>
       </div>
     </div>
 
@@ -351,7 +366,7 @@
         host: 'https://www.youtube.com',
         playerVars: {
           'origin': window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://www.youtube.com',
-          'fs': 1 // 允許播放器顯示全螢幕按鈕
+          'fs': 0 // 隱藏 YouTube 內建會導致字幕消失的全螢幕按鈕，改用我們自己的全螢幕按鈕
         },
         events: {
           'onStateChange': onPlayerStateChange
@@ -504,7 +519,27 @@
       subtitleOverlay.style.bottom = `${val}%`;
     });
 
-    // 7. 面板收合/展開控制邏輯
+    // 7. 自訂全螢幕按鈕邏輯
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const videoWrapper = document.getElementById('videoWrapper');
+
+    fullscreenBtn.addEventListener('click', function() {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (videoWrapper.requestFullscreen) {
+          videoWrapper.requestFullscreen();
+        } else if (videoWrapper.webkitRequestFullscreen) {
+          videoWrapper.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+      }
+    });
+
+    // 8. 面板收合/展開控制邏輯
     const collapseBtn = document.getElementById('collapseBtn');
     const floatingExpandBtn = document.getElementById('floatingExpandBtn');
     const rightPanel = document.getElementById('rightPanel');
@@ -522,7 +557,7 @@
       floatingExpandBtn.style.display = 'none';
     });
 
-    // 8. 右側面板手動拖曳調整寬度邏輯 (Resizer)
+    // 9. 右側面板手動拖曳調整寬度邏輯 (Resizer)
     let isResizing = false;
 
     resizer.addEventListener('mousedown', function(e) {
@@ -552,21 +587,6 @@
         document.body.style.userSelect = '';
       }
     });
-
-    // 9. 監聽瀏覽器全螢幕事件，確保切換全螢幕時自動把 video-wrapper 提升至全螢幕
-    const videoWrapper = document.getElementById('videoWrapper');
-    
-    // 當使用者點擊 YouTube 播放器的全螢幕按鈕時，部分瀏覽器會嘗試將 iframe 內嵌全螢幕。
-    // 透過監聽全螢幕變化，如果 iframe 觸發全螢幕，我們同步將 wrapper 放入全螢幕以確保字幕層不被蓋掉。
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-    function handleFullscreenChange() {
-      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
-      if (isFullscreen) {
-        subtitleOverlay.style.zIndex = '2147483647'; // 確保在全螢幕時層級最高
-      }
-    }
   </script>
 </body>
 </html>
