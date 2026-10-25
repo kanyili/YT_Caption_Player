@@ -79,6 +79,8 @@
       position: relative;
       min-width: 250px;
     }
+    
+    /* 影片包覆層：當進入全螢幕時，連同內部字幕一起放大 */
     .video-wrapper {
       position: relative;
       width: 100%;
@@ -89,12 +91,27 @@
       justify-content: center;
       overflow: hidden;
     }
+    
+    /* 支援瀏覽器全螢幕 API 的樣式 */
+    .video-wrapper:fullscreen {
+      width: 100vw;
+      height: 100vh;
+    }
+    .video-wrapper:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+    }
+    .video-wrapper:-moz-full-screen {
+      width: 100vw;
+      height: 100vh;
+    }
+
     #player {
       width: 100%;
       height: 100%;
     }
     
-    /* 疊加字幕區 */
+    /* 疊加字幕區：直接放在 video-wrapper 內，確保全螢幕時同步顯示 */
     .subtitle-overlay {
       position: absolute;
       left: 50%;
@@ -103,7 +120,7 @@
       width: 90%;
       text-align: center;
       pointer-events: none;
-      z-index: 10;
+      z-index: 9999; /* 確保層級最高，不會被影片蓋過 */
     }
     .subtitle-text {
       display: inline-block;
@@ -112,7 +129,7 @@
       padding: 8px 20px;
       border-radius: 6px;
       font-size: 23px;
-      line-height: 1.15; /* 初始行高 */
+      line-height: 1.15;
       text-align: left;
       white-space: pre;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
@@ -273,7 +290,8 @@
 
     <!-- 左側播放與字幕 -->
     <div class="left-panel" id="leftPanel">
-      <div class="video-wrapper">
+      <!-- 將 video-wrapper 作為全螢幕與字幕的共同容器 -->
+      <div class="video-wrapper" id="videoWrapper">
         <div id="player"></div>
         <div class="subtitle-overlay" id="subtitleOverlay">
           <div class="subtitle-text" id="subtitleText" style="display: none;"></div>
@@ -332,7 +350,8 @@
         videoId: '',
         host: 'https://www.youtube.com',
         playerVars: {
-          'origin': window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://www.youtube.com'
+          'origin': window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://www.youtube.com',
+          'fs': 1 // 允許播放器顯示全螢幕按鈕
         },
         events: {
           'onStateChange': onPlayerStateChange
@@ -533,6 +552,21 @@
         document.body.style.userSelect = '';
       }
     });
+
+    // 9. 監聽瀏覽器全螢幕事件，確保切換全螢幕時自動把 video-wrapper 提升至全螢幕
+    const videoWrapper = document.getElementById('videoWrapper');
+    
+    // 當使用者點擊 YouTube 播放器的全螢幕按鈕時，部分瀏覽器會嘗試將 iframe 內嵌全螢幕。
+    // 透過監聽全螢幕變化，如果 iframe 觸發全螢幕，我們同步將 wrapper 放入全螢幕以確保字幕層不被蓋掉。
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    function handleFullscreenChange() {
+      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+      if (isFullscreen) {
+        subtitleOverlay.style.zIndex = '2147483647'; // 確保在全螢幕時層級最高
+      }
+    }
   </script>
 </body>
 </html>
